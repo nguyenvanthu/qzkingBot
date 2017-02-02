@@ -19,13 +19,38 @@ public class BaseEventHandler implements IEventListener {
 
 	@Override
 	public void dispatch(BaseEvent event) throws SFSException {
+//		if (targetMethod == null) {
+//			try {
+//				targetMethod = this.handler.getClass().getMethod(methodName, BaseEvent.class);
+//				targetMethod.invoke(handler, event);
+//			} catch (Exception e) {
+//				e.printStackTrace();
+//			}
+//		}
+		if (this.handler == null) {
+			return ;
+		}
 		if (targetMethod == null) {
-			try {
-				targetMethod = this.handler.getClass().getMethod(methodName, BaseEvent.class);
-				targetMethod.invoke(handler, event);
-			} catch (Exception e) {
-				e.printStackTrace();
+			synchronized (this) {
+				if (targetMethod == null) {
+					Method[] methods = this.handler.getClass().getMethods();
+					for (Method method : methods) {
+						if (method.getName().equals(this.methodName) && method.getParameterCount() == 1
+								&& BaseEvent.class.isAssignableFrom(method.getParameterTypes()[0])) {
+							targetMethod = method;
+							break;
+						}
+					}
+					if (targetMethod == null) {
+						return;
+					}
+				}
 			}
+		}
+		try {
+			targetMethod.invoke(handler, event);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
