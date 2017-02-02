@@ -1,6 +1,7 @@
 package com.java.qzking;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,6 +26,7 @@ import sfs2x.client.requests.LoginRequest;
 public class Bot implements IEventListener {
 	private SmartFox smartFox;
 	private BotType type;
+	private List<Integer> userIds = new ArrayList<>();
 	private int counter = 0;
 	private ScheduledExecutorService timer = Executors.newScheduledThreadPool(2);
 
@@ -83,6 +85,11 @@ public class Bot implements IEventListener {
 
 	private void onJoinRoom(BaseEvent event) {
 		System.out.println("client test join room");
+		if(this.userIds.size()>0){
+			for(int userId : this.userIds){
+				sendInviteRequest(userId);
+			}
+		}
 		monitorLag();
 	}
 
@@ -93,12 +100,21 @@ public class Bot implements IEventListener {
 		switch (command) {
 		// ONLINE LIST
 		case "27":
-			ISFSArray arr = new SFSArray();
-			arr = (ISFSArray) event.getArguments().get("lFound");
-			if(arr !=null){
-				System.out.println("number user online is: "+arr.size());
-			}else {
-				System.out.println("no body in server ");
+			if(this.getType() == BotType.AUTO_INVITE ){
+				SFSArray arr = new SFSArray();
+				arr = (SFSArray) params.getSFSArray("lFound");
+				if(arr !=null){
+					System.out.println("number user online is: "+arr.size());
+					for(int i = 0; i<arr.size();i++){
+						SFSObject userOnline = (SFSObject) arr.getSFSObject(i);
+						int userId = userOnline.getInt("id");
+						String displayName = userOnline.getUtfString("display");
+						System.out.println("user "+userId+" with "+displayName);
+						this.userIds.add(userId);
+					}
+				}else {
+					System.out.println("no body in server ");
+				}
 			}
 			break;
 		// CLIENT_INVITE
@@ -179,11 +195,11 @@ public class Bot implements IEventListener {
 		this.smartFox.send(new ExtensionRequest(Event.PING, obj));
 	}
 	
-	@SuppressWarnings("unused")
 	private void sendInviteRequest(int invite_id){
+		System.out.println("send invite request to user "+invite_id);
 		ISFSObject obj = new SFSObject();
 		obj.putInt("invite_id", invite_id);
-		obj.putBool("cancel", false);
+//		obj.putBool("cancel", false);
 		
 		this.smartFox.send(new ExtensionRequest("30", obj));
 	}

@@ -11,7 +11,7 @@ public class TestBot {
 		exevutor.execute(new Runnable() {
 			@Override
 			public void run() {
-				Bot bot = new Bot(BotType.random());
+				Bot bot = new Bot(BotType.AUTO_INVITE);
 				bot.start();
 			}
 		});
