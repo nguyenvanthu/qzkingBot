@@ -26,12 +26,14 @@ import sfs2x.client.requests.LoginRequest;
 public class Bot implements IEventListener {
 	private SmartFox smartFox;
 	private BotType type;
+	private String botName;
 	private List<Integer> userIds = new ArrayList<>();
 	private int counter = 0;
 	private ScheduledExecutorService timer = Executors.newScheduledThreadPool(2);
 
-	public Bot(BotType type) {
+	public Bot(BotType type, String name) {
 		this.setType(type);
+		this.botName = name;
 		System.out.println("start bot with type: " + type);
 		init();
 	}
@@ -84,9 +86,9 @@ public class Bot implements IEventListener {
 	}
 
 	private void onJoinRoom(BaseEvent event) {
-		System.out.println("client test join room");
-		if(this.userIds.size()>0){
-			for(int userId : this.userIds){
+		System.out.println(this.botName + " join room");
+		if (this.userIds.size() > 0) {
+			for (int userId : this.userIds) {
 				sendInviteRequest(userId);
 			}
 		}
@@ -95,54 +97,87 @@ public class Bot implements IEventListener {
 
 	private void onExtensionResponse(BaseEvent event) {
 		String command = (String) event.getArguments().get("cmd");
+		System.out.println("receive " + command);
 		ISFSObject params = (SFSObject) event.getArguments().get("params");
 		ISFSObject obj = new SFSObject();
 		switch (command) {
 		// ONLINE LIST
 		case "27":
-			if(this.getType() == BotType.AUTO_INVITE ){
+			if (this.getType() == BotType.AUTO_INVITE) {
 				SFSArray arr = new SFSArray();
 				arr = (SFSArray) params.getSFSArray("lFound");
-				if(arr !=null){
-					System.out.println("number user online is: "+arr.size());
-					for(int i = 0; i<arr.size();i++){
+				if (arr != null) {
+					System.out.println("number user online is: " + arr.size());
+					for (int i = 0; i < arr.size(); i++) {
 						SFSObject userOnline = (SFSObject) arr.getSFSObject(i);
 						int userId = userOnline.getInt("id");
 						String displayName = userOnline.getUtfString("display");
-						System.out.println("user "+userId+" with "+displayName);
+						System.out.println("user " + userId + " with " + displayName);
 						this.userIds.add(userId);
 					}
-				}else {
+				} else {
 					System.out.println("no body in server ");
+					startGameSolo();
 				}
 			}
 			break;
 		// CLIENT_INVITE
 		case "30":
-			obj.putUtfString("rName", params.getUtfString("rName"));
-			System.out.println("bot send accept room" + params.getUtfString("rName"));
+			String roomName = params.getUtfString("rName");
+			String ownerName = params.getUtfString("ownerName");
+			String ownerID = params.getUtfString("ownerID");
+			if (roomName == null) {
+				break;
+			}
+			System.out.println(roomName + " & " + ownerName + " & " + ownerID);
+			obj.putUtfString("rName", roomName);
+			System.out.println(this.botName + " send accept room" + roomName);
 			obj.putBool("accept", true);
 			smartFox.send(new ExtensionRequest(Event.CLIENT_INVITERESPONSE, obj));
 			obj = null;
 			break;
 		// CLIENT_ANSWER
 		case "12":
-			System.out.println("bot send answer");
+			System.out.println(this.botName + " send answer");
+			int currentQuiz = params.getInt("currQuiz");
+			String question = params.getUtfString("question");
+			String correctAnswer = params.getUtfString("correctAnswer");
+			System.out.println(this.botName + " play quiz " + currentQuiz + " question: " + question);
 			Random random = new Random();
 			int i = random.nextInt(3 - 0 + 1) + 0;
 			ArrayList<String> s = new ArrayList<String>(params.getUtfStringArray("answer"));
+			String randomAns = s.get(i);
+			System.out.println("random answer: " + randomAns);
 			obj = new SFSObject();
-			obj.putUtfString("answer", s.get(i));
+			obj.putUtfString("answer", correctAnswer);
 			smartFox.send(new ExtensionRequest(Event.ANSWER, obj));
 			break;
 		// LIST_QUIZ
 		case "12.5":
 			ISFSArray quizArr = new SFSArray();
-			quizArr = (ISFSArray) event.getArguments().get("lQ");
-			System.out.println("number quizs: "+quizArr.size());
+			quizArr = (SFSArray) params.getSFSArray("lQ");
+			System.out.println("number quizs: " + quizArr.size());
+			break;
+		// CLIENT_START
+		case "9":
+			int currQuiz = params.getInt("currQuiz");
+			int time = params.getInt("time");
+			int type = params.getInt("solo");
+			System.out.println(currQuiz + " & " + time + " & " + type);
 			break;
 		case "11":
 			System.out.println("bot's game stopped");
+			break;
+		// ERROR
+		case "0":
+			if (params.containsKey("msg")) {
+				String error = params.getUtfString("msg");
+				System.out.println("has error: " + error);
+			}
+			if (params.containsKey("code")) {
+				int errorCode = params.getInt("code");
+				System.out.println("error code: " + errorCode);
+			}
 			break;
 		default:
 			break;
@@ -172,10 +207,10 @@ public class Bot implements IEventListener {
 	private void login() {
 		ISFSObject obj = new SFSObject();
 		obj.putUtfString("did", "test");
-		obj.putUtfString("fid", "test");
-		obj.putUtfString("em", "test");
+		// obj.putUtfString("fid", "test");
+		// obj.putUtfString("em", "test");
 
-		LoginRequest request = new LoginRequest("test", "test", ServerConfig.ZONE, obj);
+		LoginRequest request = new LoginRequest(this.botName, this.botName, ServerConfig.ZONE, obj);
 		this.smartFox.send(request);
 	}
 
@@ -190,18 +225,30 @@ public class Bot implements IEventListener {
 	}
 
 	private void ping() {
-		System.out.println("send ping request");
+		System.out.println(this.botName + " send ping request");
 		ISFSObject obj = new SFSObject();
 		this.smartFox.send(new ExtensionRequest(Event.PING, obj));
 	}
-	
-	private void sendInviteRequest(int invite_id){
-		System.out.println("send invite request to user "+invite_id);
-		ISFSObject obj = new SFSObject();
-		obj.putInt("invite_id", invite_id);
-//		obj.putBool("cancel", false);
-		
-		this.smartFox.send(new ExtensionRequest("30", obj));
+
+	private void sendInviteRequest(int invite_id) {
+		System.out.println(this.botName + " send invite request to user " + invite_id);
+		ISFSObject params = new SFSObject();
+		params.putBool("pvp", true);
+		List<Integer> invites = new ArrayList<>();
+		invites.add(invite_id);
+		params.putIntArray("inviteList", invites);
+		params.putInt("gemFee", 5);
+		params.putInt("coinFee", 5);
+		// obj.putBool("cancel", false);
+
+		this.smartFox.send(new ExtensionRequest("9", params));
+	}
+
+	private void startGameSolo() {
+		System.out.println(this.botName + " start game solo");
+		ISFSObject params = new SFSObject();
+		params.putBool("solo", true);
+		this.smartFox.send(new ExtensionRequest("9", params));
 	}
 
 	public BotType getType() {
