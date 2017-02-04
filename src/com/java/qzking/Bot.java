@@ -45,6 +45,10 @@ public class Bot implements IEventListener {
 	public void start() {
 		connect();
 	}
+	
+	public void stop(){
+		disconnect();
+	}
 
 	private void initSmartFox() {
 		this.smartFox = new SmartFox(ServerConfig.DEBUG_SFS);
@@ -178,6 +182,7 @@ public class Bot implements IEventListener {
 				int errorCode = params.getInt("code");
 				System.out.println("error code: " + errorCode);
 			}
+			restart();
 			break;
 		default:
 			break;
@@ -212,6 +217,10 @@ public class Bot implements IEventListener {
 
 		LoginRequest request = new LoginRequest(this.botName, this.botName, ServerConfig.ZONE, obj);
 		this.smartFox.send(request);
+	}
+	private void restart(){
+		stop();
+		start();
 	}
 
 	private void monitorLag() {
