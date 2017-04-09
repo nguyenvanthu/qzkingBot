@@ -4,4 +4,5 @@ public class Event {
 	public static final String PING = "2";
 	public static final String CLIENT_INVITERESPONSE = "16";
 	public static final String ANSWER = "13";
+	public static final String REMOVE_GAME = "43";
 }
